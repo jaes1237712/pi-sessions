@@ -15,7 +15,7 @@ To sync this device's sessions:
 To open a session created on another device without copying it:
 
 ```bash
-pi --session "$HOME/pi-sessions/sessions/<device>/<path-to-session>.jsonl"
+pi --session "$HOME/Projects/PiCodingAgent/pi-sessions/sessions/<device>/<path-to-session>.jsonl"
 ```
 
 Sessions may contain source code, terminal output, or secrets. Keep this repository private.
