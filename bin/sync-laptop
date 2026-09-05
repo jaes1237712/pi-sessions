@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Sync only this laptop's Pi sessions. Do not write one JSONL from multiple devices.
+set -euo pipefail
+
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$repo_root"
+
+git add sessions/laptop
+if ! git diff --cached --quiet; then
+  git commit -m "chore(sessions): sync laptop"
+fi
+
+git pull --rebase origin "$(git branch --show-current)"
+git push origin "$(git branch --show-current)"
