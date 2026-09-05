@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Synchronize the shared Pi session store through Git.
+set -euo pipefail
+
+script_path=${BASH_SOURCE[0]}
+while [[ -L "$script_path" ]]; do
+  script_dir=$(cd "$(dirname "$script_path")" && pwd)
+  script_path=$(readlink "$script_path")
+  [[ "$script_path" = /* ]] || script_path="$script_dir/$script_path"
+done
+repo_root=$(cd "$(dirname "$script_path")/.." && pwd)
+session_dir="$repo_root/sessions"
+
+# Refuse to relocate the file of a Pi process that invokes this command directly.
+if [[ -n ${PI_SESSION_FILE:-} && "$PI_SESSION_FILE" != "$session_dir"/*.jsonl ]]; then
+  echo "Refusing to migrate an active legacy session: $PI_SESSION_FILE" >&2
+  echo "Exit Pi, reload your shell, then run sync-sessions from the terminal." >&2
+  exit 1
+fi
+
+# One-time migration from the old per-device/nested layout. Session UUID filenames
+# are globally unique. Identical copies are deduplicated; prefix-related copies keep
+# the longer version; genuinely divergent copies stop for manual resolution.
+python3 - "$session_dir" <<'PY'
+from pathlib import Path
+import os, sys
+
+root = Path(sys.argv[1])
+for source in sorted(root.rglob("*.jsonl")):
+    if source.parent == root:
+        continue
+    target = root / source.name
+    incoming = source.read_bytes()
+    if target.exists():
+        current = target.read_bytes()
+        if current == incoming:
+            pass
+        elif incoming.startswith(current):
+            target.write_bytes(incoming)
+        elif not current.startswith(incoming):
+            raise SystemExit(f"Divergent session copies require manual resolution:\n  {target}\n  {source}")
+    else:
+        target.write_bytes(incoming)
+    source.unlink()
+
+for directory, subdirs, files in os.walk(root, topdown=False):
+    path = Path(directory)
+    if path != root and not any(path.iterdir()):
+        path.rmdir()
+PY
+
+cd "$repo_root"
+branch=$(git branch --show-current)
+[[ -n "$branch" ]] || { echo "Cannot sync from a detached HEAD" >&2; exit 1; }
+
+git add -A sessions
+if ! git diff --cached --quiet; then
+  git commit -m "chore(sessions): sync"
+fi
+
+git pull --rebase origin "$branch"
+git push origin "$branch"
+echo "Pi sessions synchronized."
