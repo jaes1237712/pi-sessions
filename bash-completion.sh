@@ -18,4 +18,6 @@ _pi_import_project_sessions_complete() {
   esac
 }
 
+# Support both the convenient PATH command and the absolute-path form.
+complete -F _pi_import_project_sessions_complete import-project-sessions
 complete -F _pi_import_project_sessions_complete "$HOME/pi-sessions/bin/import-project-sessions"
